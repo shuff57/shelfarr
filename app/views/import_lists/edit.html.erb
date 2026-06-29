@@ -1,0 +1,12 @@
+<% content_for :title, "Edit Import List" %>
+
+<div class="max-w-2xl">
+  <div class="mb-6">
+    <%= link_to "← Back to import lists", import_lists_path, class: "text-sm text-gray-400 hover:text-white" %>
+    <h1 class="text-2xl font-bold text-white mt-2">Edit <%= @import_list.name %></h1>
+  </div>
+
+  <div class="rounded-xl bg-gray-900 ring-1 ring-gray-800 p-6">
+    <%= render "form", import_list: @import_list %>
+  </div>
+</div>

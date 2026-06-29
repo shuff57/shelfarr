@@ -1,0 +1,80 @@
+<% content_for :title, "Following" %>
+
+<div class="mb-6 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h1 class="text-2xl font-bold text-white">Followed Authors</h1>
+    <p class="text-sm text-gray-500 mt-1">New releases from followed authors are requested automatically.</p>
+  </div>
+  <%= link_to "Import Lists", import_lists_path, class: "inline-flex items-center gap-2 rounded-md px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium transition self-start" %>
+</div>
+
+<div class="rounded-xl bg-gray-900 ring-1 ring-gray-800 p-4 mb-6">
+  <h2 class="text-sm font-semibold text-gray-300 mb-3">Follow an author</h2>
+  <%= form_with url: author_follows_path, method: :post, class: "flex flex-col sm:flex-row gap-3 sm:items-end" do |f| %>
+    <%= f.fields_for :author_follow do |af| %>
+      <div class="flex-1">
+        <%= af.label :author_name, "Author name", class: "block text-xs text-gray-500 mb-1" %>
+        <%= af.text_field :author_name, required: true, placeholder: "e.g. Brandon Sanderson",
+              class: "w-full rounded-md border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 px-3 py-2" %>
+      </div>
+      <div>
+        <%= af.label :book_type, "Format", class: "block text-xs text-gray-500 mb-1" %>
+        <%= af.select :book_type, AuthorFollow.book_types.keys.map { |t| [ t.titleize, t ] }, { selected: "ebook" },
+              class: "rounded-md border border-gray-700 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 px-3 py-2" %>
+      </div>
+      <label class="inline-flex items-center gap-2 text-sm text-gray-300 pb-2">
+        <%= af.check_box :auto_request, { checked: true }, "true", "false" %>
+        Auto-request
+      </label>
+    <% end %>
+    <%= f.submit "Follow", class: "rounded-md px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium cursor-pointer" %>
+  <% end %>
+</div>
+
+<% if @author_follows.empty? %>
+  <div class="text-center py-12 text-gray-500">
+    You're not following any authors yet. Add one above, or use the <strong class="text-gray-300">Follow author</strong> button on a search result.
+  </div>
+<% else %>
+  <div class="overflow-hidden rounded-xl ring-1 ring-gray-800">
+    <table class="min-w-full divide-y divide-gray-800">
+      <thead class="bg-gray-900">
+        <tr>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Author</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Format</th>
+          <th class="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">Last checked</th>
+          <th class="px-4 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800 bg-gray-950">
+        <% @author_follows.each do |follow| %>
+          <tr>
+            <td class="px-4 py-3 text-sm text-white font-medium">
+              <%= follow.author_name %>
+              <% unless follow.enabled? %>
+                <span class="ml-2 text-xs rounded-full bg-gray-700 px-2 py-0.5 text-gray-300">paused</span>
+              <% end %>
+              <% unless follow.auto_request? %>
+                <span class="ml-2 text-xs rounded-full bg-gray-800 px-2 py-0.5 text-gray-400">discover only</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-400"><%= follow.book_type.titleize %></td>
+            <td class="px-4 py-3 text-sm text-gray-500">
+              <%= follow.last_checked_at ? "#{time_ago_in_words(follow.last_checked_at)} ago" : "pending" %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="inline-flex items-center gap-2">
+                <%= button_to follow.enabled? ? "Pause" : "Resume", author_follow_path(follow), method: :patch,
+                      params: { author_follow: { enabled: !follow.enabled? } },
+                      class: "rounded-md px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs cursor-pointer" %>
+                <%= button_to "Unfollow", author_follow_path(follow), method: :delete,
+                      form: { data: { turbo_confirm: "Unfollow #{follow.author_name}?" } },
+                      class: "rounded-md px-3 py-1.5 bg-red-600/80 hover:bg-red-500 text-white text-xs cursor-pointer" %>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>

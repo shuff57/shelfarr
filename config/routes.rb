@@ -19,6 +19,17 @@ Rails.application.routes.draw do
   get "search/results", to: "search#results"
   get "search/results/stream", to: "search#stream_results"
 
+  # Discover (recommendations from your library + followed authors)
+  get "discover", to: "discover#index"
+
+  # Author follows and import lists (Readarr-style monitoring)
+  resources :author_follows, only: [ :index, :create, :update, :destroy ]
+  resources :import_lists, only: [ :index, :new, :create, :edit, :update, :destroy ] do
+    member do
+      post :sync
+    end
+  end
+
   # Library
   resources :library, only: [ :index, :show, :destroy ] do
     member do

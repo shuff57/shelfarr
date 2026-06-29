@@ -26,6 +26,14 @@ default: &default
     class: UpdateCheckJob
     queue: default
     schedule: every 6 hours
+  author_follow_sync:
+    class: AuthorFollowSyncJob
+    queue: default
+    schedule: every 6 hours
+  import_list_sync:
+    class: ImportListSyncJob
+    queue: default
+    schedule: every 6 hours
 
 development:
   <<: *default

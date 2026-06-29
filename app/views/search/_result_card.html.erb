@@ -144,6 +144,18 @@
             <% end %>
           </div>
         <% end %>
+
+        <% if result.author.present? %>
+          <%= button_to author_follows_path,
+                params: { author_follow: { author_name: result.author, book_type: "ebook" } },
+                class: "flex items-center justify-center gap-2 w-full px-3 py-2 rounded-md text-sm font-medium bg-gray-800/90 hover:bg-gray-700 text-gray-200 transition-colors",
+                title: "Follow #{result.author} — auto-request new releases" do %>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Follow author
+          <% end %>
+        <% end %>
       </div>
     </div>
   </div>

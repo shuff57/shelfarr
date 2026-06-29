@@ -9,6 +9,8 @@ class User < ApplicationRecord
   has_many :uploads, dependent: :destroy
   has_many :notifications, dependent: :destroy
   has_many :activity_logs, dependent: :destroy
+  has_many :author_follows, dependent: :destroy
+  has_many :import_lists, dependent: :destroy
 
   scope :active, -> { where(deleted_at: nil) }
 

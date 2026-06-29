@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_15_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_28_120100) do
   create_table "acquisition_providers", force: :cascade do |t|
     t.boolean "allow_private_network", default: false, null: false
     t.string "api_key"
@@ -60,6 +60,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_120000) do
     t.index ["token_digest"], name: "index_api_tokens_on_token_digest", unique: true
     t.index ["token_prefix"], name: "index_api_tokens_on_token_prefix"
     t.index ["user_id"], name: "index_api_tokens_on_user_id"
+  end
+
+  create_table "author_follows", force: :cascade do |t|
+    t.string "author_name", null: false
+    t.boolean "auto_request", default: true, null: false
+    t.integer "book_type", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "last_checked_at"
+    t.string "metadata_author_id"
+    t.string "metadata_source"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id", "author_name", "book_type"], name: "index_author_follows_on_user_author_type", unique: true
+    t.index ["user_id"], name: "index_author_follows_on_user_id"
   end
 
   create_table "books", force: :cascade do |t|
@@ -145,6 +160,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_120000) do
     t.index ["request_id"], name: "index_downloads_on_request_id"
     t.index ["search_result_id"], name: "index_downloads_on_search_result_id"
     t.index ["status"], name: "index_downloads_on_status"
+  end
+
+  create_table "import_lists", force: :cascade do |t|
+    t.boolean "auto_request", default: true, null: false
+    t.integer "book_type", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.boolean "enabled", default: true, null: false
+    t.integer "item_limit", default: 25, null: false
+    t.string "last_sync_status"
+    t.datetime "last_synced_at"
+    t.string "list_type", null: false
+    t.string "name", null: false
+    t.string "source_id"
+    t.string "source_url"
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["user_id", "name"], name: "index_import_lists_on_user_id_and_name", unique: true
+    t.index ["user_id"], name: "index_import_lists_on_user_id"
   end
 
   create_table "library_items", force: :cascade do |t|
@@ -394,9 +427,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_15_120000) do
 
   add_foreign_key "activity_logs", "users"
   add_foreign_key "api_tokens", "users"
+  add_foreign_key "author_follows", "users"
   add_foreign_key "download_routing_rules", "download_clients"
   add_foreign_key "downloads", "requests"
   add_foreign_key "downloads", "search_results", on_delete: :nullify
+  add_foreign_key "import_lists", "users"
   add_foreign_key "notifications", "users"
   add_foreign_key "request_events", "downloads"
   add_foreign_key "request_events", "requests"

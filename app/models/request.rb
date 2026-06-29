@@ -1,5 +1,5 @@
 class Request < ApplicationRecord
-  CREATED_VIA_VALUES = %w[web api telegram].freeze
+  CREATED_VIA_VALUES = %w[web api telegram follow import_list discover].freeze
 
   belongs_to :book
   belongs_to :user
