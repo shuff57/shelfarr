@@ -14,6 +14,19 @@ class LibraryController < ApplicationController
     @attention_request = @book.requests.where(attention_needed: true).first
   end
 
+  # Streams the book's primary file to the browser viewer (epub.js / pdf.js /
+  # comic viewer). Range-enabled via send_file. Never accepts a path param —
+  # the file is resolved server-side and confined to the configured libraries.
+  def file
+    book = Book.acquired.find(params[:id])
+    path = book.primary_file
+
+    head :not_found and return if path.blank? || !File.file?(path)
+    head :forbidden and return unless path_within_allowed_directories?(path)
+
+    send_file path, disposition: "inline", type: content_type_for(path)
+  end
+
   def retry_post_processing
     unless Current.user&.admin?
       redirect_to library_index_path, alert: "Only admins can retry post-processing"
@@ -66,6 +79,17 @@ class LibraryController < ApplicationController
   end
 
   private
+
+  CONTENT_TYPES = {
+    epub: "application/epub+zip",
+    pdf: "application/pdf",
+    comic: "application/vnd.comicbook+zip"
+  }.freeze
+
+  def content_type_for(path)
+    format = Book.new.reader_format_for(path)
+    CONTENT_TYPES.fetch(format, "application/octet-stream")
+  end
 
   def record_not_found
     head :not_found

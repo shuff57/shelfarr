@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
 
 class LibraryControllerTest < ActionDispatch::IntegrationTest
   setup do
@@ -94,6 +95,45 @@ class LibraryControllerTest < ActionDispatch::IntegrationTest
     get library_path(@acquired_audiobook)
     assert_response :success
     assert_select "code", false
+  end
+
+  test "file streams a readable ebook inline" do
+    Dir.mktmpdir do |dir|
+      SettingsService.set(:ebook_output_path, dir)
+      epub = File.join(dir, "book.epub")
+      File.write(epub, "EPUBDATA")
+      book = Book.create!(title: "E", book_type: :ebook, file_path: epub)
+
+      get file_library_path(book)
+
+      assert_response :success
+      assert_equal "application/epub+zip", response.media_type
+      assert_equal "EPUBDATA", response.body
+    end
+  end
+
+  test "file requires authentication" do
+    sign_out
+    get file_library_path(@acquired_audiobook)
+    assert_response :redirect
+  end
+
+  test "file returns 404 when no readable file exists" do
+    book = Book.create!(title: "X", book_type: :ebook, file_path: "/ebooks/missing/missing.epub")
+    get file_library_path(book)
+    assert_response :not_found
+  end
+
+  test "file refuses a file outside the configured libraries" do
+    Dir.mktmpdir do |dir|
+      SettingsService.set(:ebook_output_path, "/ebooks") # not the tmpdir
+      epub = File.join(dir, "book.epub")
+      File.write(epub, "x")
+      book = Book.create!(title: "E", book_type: :ebook, file_path: epub)
+
+      get file_library_path(book)
+      assert_response :forbidden
+    end
   end
 
   test "retry post processing requires admin" do

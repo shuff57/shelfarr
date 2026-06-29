@@ -18,6 +18,40 @@ class Book < ApplicationRecord
     file_path.present?
   end
 
+  # Maps a file extension to the in-browser reader that handles it.
+  READER_FORMATS = { "epub" => :epub, "pdf" => :pdf, "cbz" => :comic, "cbr" => :comic }.freeze
+
+  # The on-disk file to read: file_path itself when it is a readable file, else
+  # the largest reader-format file inside the directory. nil when none exists.
+  def primary_file
+    return nil if file_path.blank?
+
+    if File.file?(file_path)
+      return reader_format_for(file_path) ? file_path : nil
+    end
+    return nil unless File.directory?(file_path)
+
+    Dir.glob(File.join(file_path, "**", "*"))
+       .select { |f| File.file?(f) && reader_format_for(f) }
+       .max_by { |f| File.size(f) }
+  end
+
+  # :epub, :pdf, :comic, or nil for the book's primary file.
+  def reader_format
+    reader_format_for(primary_file)
+  end
+
+  # Only ebooks with a renderable file can be opened in the reader.
+  def readable?
+    ebook? && reader_format.present?
+  end
+
+  def reader_format_for(path)
+    return nil if path.blank?
+
+    READER_FORMATS[File.extname(path.to_s).delete_prefix(".").downcase]
+  end
+
   def display_name
     author.present? ? "#{title} by #{author}" : title
   end

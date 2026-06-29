@@ -34,6 +34,7 @@ Rails.application.routes.draw do
   resources :library, only: [ :index, :show, :destroy ] do
     member do
       post :retry_post_processing
+      get :file
     end
   end
 
