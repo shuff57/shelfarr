@@ -15,12 +15,15 @@ class SearchJobTest < ActiveJob::TestCase
     SettingsService.set(:librivox_url, "https://librivox.org")
     SettingsService.set(:gutenberg_enabled, false)
     SettingsService.set(:gutenberg_url, "https://www.gutenberg.org")
+    SettingsService.set(:libgen_enabled, false)
+    SettingsService.set(:libgen_url, "https://libgen.li")
     SettingsService.set(:indexer_search_scope, "broad")
     SettingsService.set(:indexer_custom_audiobook_categories, "")
     SettingsService.set(:indexer_custom_ebook_categories, "")
     ZLibraryClient.reset_connection! if defined?(ZLibraryClient)
     LibrivoxClient.reset_connection! if defined?(LibrivoxClient)
     GutenbergClient.reset_connection! if defined?(GutenbergClient)
+    LibGenClient.reset_connection! if defined?(LibGenClient)
   end
 
   teardown do
@@ -32,12 +35,15 @@ class SearchJobTest < ActiveJob::TestCase
     SettingsService.set(:librivox_url, "https://librivox.org")
     SettingsService.set(:gutenberg_enabled, false)
     SettingsService.set(:gutenberg_url, "https://www.gutenberg.org")
+    SettingsService.set(:libgen_enabled, false)
+    SettingsService.set(:libgen_url, "https://libgen.li")
     SettingsService.set(:indexer_search_scope, "broad")
     SettingsService.set(:indexer_custom_audiobook_categories, "")
     SettingsService.set(:indexer_custom_ebook_categories, "")
     ZLibraryClient.reset_connection! if defined?(ZLibraryClient)
     LibrivoxClient.reset_connection! if defined?(LibrivoxClient)
     GutenbergClient.reset_connection! if defined?(GutenbergClient)
+    LibGenClient.reset_connection! if defined?(LibGenClient)
   end
 
   test "updates request status to searching" do
@@ -1076,6 +1082,50 @@ class SearchJobTest < ActiveJob::TestCase
     assert_equal result.download_url, saved_result.download_url
     assert_equal "en", saved_result.detected_language
     assert_includes saved_result.title, "[EPUB]"
+  end
+
+  test "includes LibGen results for ebook requests" do
+    SettingsService.set(:prowlarr_api_key, "")
+    SettingsService.set(:libgen_enabled, true)
+    result = LibGenClient::Result.new(
+      file_id: "12345",
+      title: "Pride and Prejudice",
+      author: "Jane Austen",
+      year: 1813,
+      file_type: "epub",
+      file_size: "2 MB",
+      language: "en"
+    )
+
+    LibGenClient.stub :search, ->(query, language: nil, **) {
+      assert_includes query, @request.book.title
+      assert_equal "en", language
+      [ result ]
+    } do
+      SearchJob.perform_now(@request.id)
+    end
+
+    @request.reload
+    saved_result = @request.search_results.first
+    assert_equal SearchResult::SOURCE_LIBGEN, saved_result.source
+    assert_equal "libgen:12345", saved_result.guid
+    assert_equal "LibGen", saved_result.indexer
+    assert_equal "en", saved_result.detected_language
+    assert_includes saved_result.title, "[EPUB]"
+    assert saved_result.downloadable?
+  end
+
+  test "skips LibGen for audiobook requests" do
+    SettingsService.set(:prowlarr_api_key, "")
+    SettingsService.set(:libgen_enabled, true)
+    book = books(:audiobook_acquired)
+    request = Request.create!(book: book, user: users(:one), status: :pending)
+
+    LibGenClient.stub :search, ->(*) { flunk "LibGen should only be searched for ebooks" } do
+      SearchJob.perform_now(request.id)
+    end
+
+    assert_empty request.reload.search_results.where(source: SearchResult::SOURCE_LIBGEN)
   end
 
   test "includes custom acquisition provider results" do

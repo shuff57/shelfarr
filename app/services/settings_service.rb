@@ -158,6 +158,11 @@ class SettingsService
     gutenberg_url: { type: "string", default: "https://www.gutenberg.org", category: "gutenberg", description: "Project Gutenberg OPDS catalog base URL" },
     gutenberg_search_limit: { type: "integer", default: 10, category: "gutenberg", description: "Maximum number of Project Gutenberg ebook results to return" },
 
+    # LibGen (Library Genesis)
+    libgen_enabled: { type: "boolean", default: false, category: "libgen", description: "Enable a Library Genesis mirror as a direct ebook source. No torrent client required." },
+    libgen_url: { type: "string", default: "https://libgen.li", category: "libgen", description: "LibGen mirror base URLs to try (e.g. https://libgen.li, https://libgen.vg). Shelfarr uses the first reachable mirror." },
+    libgen_search_limit: { type: "integer", default: 25, category: "libgen", description: "Maximum number of LibGen ebook results to return" },
+
     # Hardcover Integration
     hardcover_enabled: { type: "boolean", default: true, category: "hardcover", description: "Enable Hardcover as a metadata provider when an API token is configured" },
     hardcover_api_token: { type: "string", default: "", category: "hardcover", description: "API token from Hardcover account settings (hardcover.app/account/api)" },
@@ -207,6 +212,7 @@ class SettingsService
     "anna_archive" => "Anna's Archive",
     "zlibrary" => "Z-Library",
     "gutenberg" => "Project Gutenberg",
+    "libgen" => "LibGen",
     "librivox" => "LibriVox",
     "hardcover" => "Hardcover",
     "google_books" => "Google Books",
@@ -382,6 +388,10 @@ class SettingsService
 
     def gutenberg_configured?
       get(:gutenberg_enabled, default: false) && configured?(:gutenberg_url)
+    end
+
+    def libgen_configured?
+      get(:libgen_enabled, default: false) && configured?(:libgen_url)
     end
 
     def flaresolverr_configured?

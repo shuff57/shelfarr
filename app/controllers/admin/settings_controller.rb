@@ -249,6 +249,19 @@ module Admin
       end
     end
 
+    def test_libgen
+      unless LibGenClient.configured?
+        respond_with_flash(alert: "LibGen is not enabled.")
+        return
+      end
+
+      if LibGenClient.test_connection
+        respond_with_flash(notice: "LibGen connection successful!")
+      else
+        respond_with_flash(alert: "LibGen connection failed. Try libgen.li or libgen.vg as the mirror.")
+      end
+    end
+
     def test_oidc
       unless SettingsService.get(:oidc_enabled, default: false)
         respond_with_flash(alert: "OIDC is not enabled. Enable it first.")

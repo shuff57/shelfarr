@@ -20,6 +20,7 @@ class SearchResult < ApplicationRecord
   SOURCE_ANNA_ARCHIVE = "anna_archive"
   SOURCE_ZLIBRARY = "zlibrary"
   SOURCE_GUTENBERG = "gutenberg"
+  SOURCE_LIBGEN = "libgen"
   SOURCE_LIBRIVOX = "librivox"
   SOURCE_CUSTOM = "custom"
 
@@ -52,7 +53,7 @@ class SearchResult < ApplicationRecord
         WHEN source = '#{SOURCE_CUSTOM}' AND #{custom_type_sql} = '' AND #{custom_direct_url_sql} IS NOT NULL THEN 'direct'
         WHEN source = '#{SOURCE_CUSTOM}' AND #{custom_type_sql} = '' AND #{custom_nzb_url_sql} IS NOT NULL THEN 'usenet'
         WHEN source = '#{SOURCE_CUSTOM}' AND #{custom_type_sql} = '' AND #{custom_magnet_url_sql} IS NOT NULL THEN 'torrent'
-        WHEN source IN ('#{SOURCE_ANNA_ARCHIVE}', '#{SOURCE_ZLIBRARY}', '#{SOURCE_GUTENBERG}', '#{SOURCE_LIBRIVOX}') THEN 'direct'
+        WHEN source IN ('#{SOURCE_ANNA_ARCHIVE}', '#{SOURCE_ZLIBRARY}', '#{SOURCE_GUTENBERG}', '#{SOURCE_LIBGEN}', '#{SOURCE_LIBRIVOX}') THEN 'direct'
         WHEN download_url IS NOT NULL AND magnet_url IS NULL AND seeders IS NULL THEN 'usenet'
         ELSE 'torrent'
       END
@@ -109,6 +110,7 @@ class SearchResult < ApplicationRecord
     from_anna_archive? ||
       from_zlibrary? ||
       from_gutenberg? ||
+      from_libgen? ||
       from_librivox? ||
       (from_custom_provider? && custom_provider_download_type == "direct")
   end
@@ -239,6 +241,10 @@ class SearchResult < ApplicationRecord
     source == SOURCE_GUTENBERG
   end
 
+  def from_libgen?
+    source == SOURCE_LIBGEN
+  end
+
   def from_librivox?
     source == SOURCE_LIBRIVOX
   end
@@ -259,6 +265,8 @@ class SearchResult < ApplicationRecord
       "Z-Library"
     when SOURCE_GUTENBERG
       "Project Gutenberg"
+    when SOURCE_LIBGEN
+      "LibGen"
     when SOURCE_LIBRIVOX
       "LibriVox"
     when SOURCE_CUSTOM

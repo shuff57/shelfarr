@@ -54,6 +54,8 @@ class DownloadJob < ApplicationJob
         handle_zlibrary_download(download, search_result)
       elsif search_result.from_gutenberg?
         handle_gutenberg_download(download, search_result)
+      elsif search_result.from_libgen?
+        handle_libgen_download(download, search_result)
       elsif search_result.from_librivox?
         handle_librivox_download(download, search_result)
       elsif search_result.from_custom_provider?
@@ -101,6 +103,11 @@ class DownloadJob < ApplicationJob
       track_request_event(download.request, "dispatch_failed", download: download, message: e.message, level: :error)
       download.update!(status: :failed)
       download.request.mark_for_attention!("Project Gutenberg error: #{e.message}")
+    rescue LibGenClient::Error => e
+      Rails.logger.error "[DownloadJob] LibGen error for download ##{download.id}: #{e.message}"
+      track_request_event(download.request, "dispatch_failed", download: download, message: e.message, level: :error)
+      download.update!(status: :failed)
+      download.request.mark_for_attention!("LibGen error: #{e.message}")
     rescue CustomAcquisitionProviderClient::Error => e
       Rails.logger.error "[DownloadJob] Custom provider error for download ##{download.id}: #{e.message}"
       track_request_event(download.request, "dispatch_failed", download: download, message: e.message, level: :error)
@@ -144,6 +151,16 @@ class DownloadJob < ApplicationJob
     raise GutenbergClient::Error, "Selected Project Gutenberg result is missing a download URL" if search_result.download_url.blank?
 
     handle_direct_http_download(download, search_result, search_result.download_url)
+  end
+
+  def handle_libgen_download(download, search_result)
+    file_id = search_result.guid.to_s.split(":", 2).last
+    raise LibGenClient::Error, "Selected LibGen result is missing a file id" if file_id.blank?
+
+    Rails.logger.info "[DownloadJob] Resolving LibGen download URL for file id #{file_id}"
+    download_url = LibGenClient.get_download_url(file_id)
+
+    handle_direct_http_download(download, search_result, download_url)
   end
 
   def handle_librivox_download(download, search_result)

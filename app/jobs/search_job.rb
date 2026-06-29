@@ -18,12 +18,13 @@ class SearchJob < ApplicationJob
     anna_available = AnnaArchiveClient.configured? && request.book.ebook?
     zlibrary_available = !anna_available && ZLibraryClient.configured? && request.book.ebook?
     gutenberg_available = GutenbergClient.configured? && request.book.ebook?
+    libgen_available = LibGenClient.configured? && request.book.ebook?
     librivox_available = LibrivoxClient.configured? && request.book.audiobook?
     custom_providers = AcquisitionProvider.enabled.for_book_type(request.book.book_type).by_priority.to_a
 
-    unless indexer_available || anna_available || zlibrary_available || gutenberg_available || librivox_available || custom_providers.any?
+    unless indexer_available || anna_available || zlibrary_available || gutenberg_available || libgen_available || librivox_available || custom_providers.any?
       Rails.logger.error "[SearchJob] No search sources configured"
-      request.mark_for_attention!("No search sources configured. Please configure an indexer, Anna's Archive, Z-Library, Project Gutenberg, LibriVox, or a custom acquisition provider.")
+      request.mark_for_attention!("No search sources configured. Please configure an indexer, Anna's Archive, Z-Library, Project Gutenberg, LibGen, LibriVox, or a custom acquisition provider.")
       return
     end
 
@@ -53,6 +54,12 @@ class SearchJob < ApplicationJob
       gutenberg_results = search_gutenberg(request)
       all_results.concat(gutenberg_results)
       Rails.logger.info "[SearchJob] Found #{gutenberg_results.count} Project Gutenberg results"
+    end
+
+    if libgen_available
+      libgen_results = search_libgen(request)
+      all_results.concat(libgen_results)
+      Rails.logger.info "[SearchJob] Found #{libgen_results.count} LibGen results"
     end
 
     if librivox_available
@@ -234,6 +241,20 @@ class SearchJob < ApplicationJob
     []
   end
 
+  def search_libgen(request)
+    book = request.book
+    query = [ book.title, book.author ].compact_blank.join(" ")
+    language = request.effective_language
+    Rails.logger.debug "[SearchJob] Searching LibGen for: #{query} (language: #{language})"
+
+    LibGenClient.search(query, language: language).map do |result|
+      { result: result, source: SearchResult::SOURCE_LIBGEN }
+    end
+  rescue LibGenClient::Error => e
+    Rails.logger.warn "[SearchJob] LibGen search failed: #{e.message}"
+    []
+  end
+
   def search_custom_provider(request, provider)
     provider.client.search(request).select(&:downloadable?).map do |result|
       { result: result, source: SearchResult::SOURCE_CUSTOM, provider: provider }
@@ -257,6 +278,8 @@ class SearchJob < ApplicationJob
         save_zlibrary_result(request, result)
       when SearchResult::SOURCE_GUTENBERG
         save_gutenberg_result(request, result)
+      when SearchResult::SOURCE_LIBGEN
+        save_libgen_result(request, result)
       when SearchResult::SOURCE_LIBRIVOX
         save_librivox_result(request, result)
       when SearchResult::SOURCE_CUSTOM
@@ -349,6 +372,22 @@ class SearchJob < ApplicationJob
       sr.info_url = result.info_url
       sr.published_at = nil
       sr.source = SearchResult::SOURCE_GUTENBERG
+      sr.detected_language = result.language
+    end
+  end
+
+  def save_libgen_result(request, result)
+    request.search_results.find_or_create_by!(guid: "libgen:#{result.file_id}") do |sr|
+      sr.title = build_direct_source_title(result)
+      sr.indexer = "LibGen"
+      sr.size_bytes = parse_size_to_bytes(result.file_size)
+      sr.seeders = nil
+      sr.leechers = nil
+      sr.download_url = nil  # Resolved via get_download_url at download time
+      sr.magnet_url = nil
+      sr.info_url = LibGenClient.info_url(result.file_id)
+      sr.published_at = nil
+      sr.source = SearchResult::SOURCE_LIBGEN
       sr.detected_language = result.language
     end
   end

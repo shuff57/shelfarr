@@ -3,7 +3,7 @@
   tab_groups = {
     "search" => {
       label: "Search",
-      categories: %w[indexer anna_archive zlibrary gutenberg librivox language auto_select]
+      categories: %w[indexer anna_archive zlibrary gutenberg libgen librivox language auto_select]
     },
     "downloads" => {
       label: "Downloads",
@@ -114,10 +114,10 @@
                           <%= form.select "settings[#{key}]", options_for_select([["Polling", "polling"], ["Webhook", "webhook"]], data[:value]), {}, id: "settings_#{key}", class: "w-full rounded-md border border-gray-700 bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-3 py-2", data: { action: "change->settings-form#autoSave" } %>
                         <% elsif key.to_s == "discord_webhook_url" %>
                           <%= form.password_field "settings[#{key}]", value: data[:value], placeholder: data[:value].present? ? "********" : "https://discord.com/api/webhooks/...", id: "settings_#{key}", class: "w-full rounded-md border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 px-3 py-2", data: { action: "change->settings-form#autoSave" } %>
-                        <% elsif %w[anna_archive_url zlibrary_url].include?(key.to_s) %>
+                        <% elsif %w[anna_archive_url zlibrary_url libgen_url].include?(key.to_s) %>
                           <% url_list_urls = data[:value].to_s.split(/[,\s]+/).map(&:strip).reject(&:blank?).uniq %>
-                          <% url_list_name = key.to_s == "zlibrary_url" ? "Z-Library" : "Anna's Archive" %>
-                          <% url_list_placeholder = key.to_s == "zlibrary_url" ? "https://z-library.example" : "https://annas-archive.example" %>
+                          <% url_list_name = { "zlibrary_url" => "Z-Library", "libgen_url" => "LibGen" }.fetch(key.to_s, "Anna's Archive") %>
+                          <% url_list_placeholder = { "zlibrary_url" => "https://z-library.example", "libgen_url" => "https://libgen.li" }.fetch(key.to_s, "https://annas-archive.example") %>
                           <div class="space-y-3"
                                data-url-list
                                data-url-list-label="<%= url_list_name %>">
@@ -289,6 +289,16 @@
                     </div>
                     <div class="md:w-2/3">
                       <%= link_to "Test Project Gutenberg Connection", test_gutenberg_admin_settings_path, data: { turbo_method: :post, turbo_preserve_scroll: true }, class: "inline-block rounded-md px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm cursor-pointer" %>
+                    </div>
+                  </div>
+                <% elsif category == "libgen" %>
+                  <div class="flex flex-col md:flex-row md:items-start gap-4 pt-4 border-t border-gray-800">
+                    <div class="md:w-1/3">
+                      <span class="font-medium text-gray-300">Connection Check</span>
+                      <p class="text-sm text-gray-500">Verify a LibGen mirror is reachable. Note: libgen.is and Anna's Archive are widely DNS-blocked; libgen.li / libgen.vg usually resolve.</p>
+                    </div>
+                    <div class="md:w-2/3">
+                      <%= link_to "Test LibGen Connection", test_libgen_admin_settings_path, data: { turbo_method: :post, turbo_preserve_scroll: true }, class: "inline-block rounded-md px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm cursor-pointer" %>
                     </div>
                   </div>
                 <% elsif category == "librivox" %>

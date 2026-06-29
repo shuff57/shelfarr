@@ -115,6 +115,7 @@ Rails.application.routes.draw do
         post :test_flaresolverr
         post :test_zlibrary
         post :test_gutenberg
+        post :test_libgen
         post :test_librivox
         post :test_hardcover
         post :test_google_books
