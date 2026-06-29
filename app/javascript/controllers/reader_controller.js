@@ -49,6 +49,7 @@ export default class extends Controller {
 
   disconnect() {
     clearTimeout(this.saveTimer)
+    if (this.viewportClick) this.viewportTarget.removeEventListener("click", this.viewportClick)
     if (this.book && this.book.destroy) this.book.destroy()
     if (this.pdf && this.pdf.destroy) this.pdf.destroy()
     if (this.comicPages) this.comicPages.forEach((url) => URL.revokeObjectURL(url))
@@ -210,6 +211,7 @@ export default class extends Controller {
     this.canvas.className = "mx-auto block"
     this.viewportTarget.classList.add("overflow-auto")
     this.viewportTarget.appendChild(this.canvas)
+    this.enableTapZones()
 
     const saved = await this.loadProgress()
     const startPage = parseInt(saved.location, 10)
@@ -267,6 +269,7 @@ export default class extends Controller {
     this.image.className = "mx-auto block max-h-full"
     this.viewportTarget.classList.add("overflow-auto")
     this.viewportTarget.appendChild(this.image)
+    this.enableTapZones()
 
     const saved = await this.loadProgress()
     const startIndex = parseInt(saved.location, 10)
@@ -316,6 +319,21 @@ export default class extends Controller {
     const width = contents.documentElement.clientWidth || contents.window.innerWidth
     if (e.clientX < width * 0.3) this.prev()
     else if (e.clientX > width * 0.7) this.next()
+    else this.toggleChrome()
+  }
+
+  // Tap-zones for the PDF canvas / comic image (which live directly in the
+  // viewport, not an iframe): left/right page, center toggles the chrome.
+  enableTapZones() {
+    this.viewportClick = (e) => this.onViewportClick(e)
+    this.viewportTarget.addEventListener("click", this.viewportClick)
+  }
+
+  onViewportClick(e) {
+    const rect = this.viewportTarget.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    if (x < rect.width * 0.3) this.prev()
+    else if (x > rect.width * 0.7) this.next()
     else this.toggleChrome()
   }
 
