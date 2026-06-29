@@ -89,6 +89,12 @@
   <%# ---- Reading viewport ---- %>
   <main data-reader-target="viewport" class="h-full w-full"></main>
 
+  <%# ---- Edge tap-zones for paging (center stays interactive for scroll/select/toggle) ---- %>
+  <button type="button" data-action="reader#prev" aria-label="Previous page"
+          class="absolute inset-y-0 left-0 z-10 w-[30%] cursor-w-resize"></button>
+  <button type="button" data-action="reader#next" aria-label="Next page"
+          class="absolute inset-y-0 right-0 z-10 w-[30%] cursor-e-resize"></button>
+
   <%# ---- Bottom chrome: chapter + scrubber + percent ---- %>
   <footer data-reader-target="chromeBottom"
           class="absolute inset-x-0 bottom-0 z-30 flex items-center gap-3 border-t border-gray-800/70 bg-gray-900/95 px-4 py-2 backdrop-blur transition-transform duration-300">

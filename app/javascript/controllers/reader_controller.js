@@ -311,30 +311,21 @@ export default class extends Controller {
     }
   }
 
+  // Paging is handled by the edge tap-zones in the view (reliable parent
+  // coordinates); a click in the interactive center area just toggles the
+  // chrome. epub.js paginates into a giant off-screen iframe, so its internal
+  // clientX is unusable for zone math — hence the parent-level edge zones.
   onContentClick(e, contents) {
     if (e.target.closest && e.target.closest("a")) return
     const selection = contents.window.getSelection()
     if (selection && selection.toString().length > 0) return
-
-    const width = contents.documentElement.clientWidth || contents.window.innerWidth
-    if (e.clientX < width * 0.3) this.prev()
-    else if (e.clientX > width * 0.7) this.next()
-    else this.toggleChrome()
+    this.toggleChrome()
   }
 
-  // Tap-zones for the PDF canvas / comic image (which live directly in the
-  // viewport, not an iframe): left/right page, center toggles the chrome.
+  // Center clicks on the PDF canvas / comic image toggle the chrome.
   enableTapZones() {
-    this.viewportClick = (e) => this.onViewportClick(e)
+    this.viewportClick = () => this.toggleChrome()
     this.viewportTarget.addEventListener("click", this.viewportClick)
-  }
-
-  onViewportClick(e) {
-    const rect = this.viewportTarget.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    if (x < rect.width * 0.3) this.prev()
-    else if (x > rect.width * 0.7) this.next()
-    else this.toggleChrome()
   }
 
   onKey(e) {
