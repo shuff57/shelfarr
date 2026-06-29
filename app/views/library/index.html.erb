@@ -33,51 +33,50 @@
   <% else %>
     <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       <% @books.each do |book| %>
-        <%= link_to library_path(book), class: "group" do %>
-          <div class="relative rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.03] bg-gray-900 ring-1 ring-gray-800">
-            <div class="aspect-[2/3] relative">
-              <% if book.cover_url.present? %>
-                <img
-                  src="<%= book.cover_url %>"
-                  alt="Cover of <%= book.title %>"
-                  class="w-full h-full object-cover"
-                  loading="lazy"
-                >
-              <% else %>
-                <div class="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
-                  <svg class="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-              <% end %>
-
-              <%# Type Badge %>
-              <span class="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium backdrop-blur-sm <%= book.audiobook? ? 'bg-purple-500/90 text-white' : 'bg-blue-500/90 text-white' %>">
-                <%= book.audiobook? ? 'Audio' : 'Ebook' %>
-              </span>
-
-              <%# Year Badge %>
-              <% if book.year.present? %>
-                <span class="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium bg-black/60 text-white backdrop-blur-sm">
-                  <%= book.year %>
-                </span>
-              <% end %>
-
-              <%# Hover Overlay %>
-              <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
-                <span class="text-white text-sm font-medium">View Details</span>
+        <div class="rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.03] bg-gray-900 ring-1 ring-gray-800">
+          <%# Cover opens the reader for readable ebooks, details otherwise %>
+          <%= link_to (book.readable? ? read_library_path(book) : library_path(book)), class: "group block aspect-[2/3] relative" do %>
+            <% if book.cover_url.present? %>
+              <img
+                src="<%= book.cover_url %>"
+                alt="Cover of <%= book.title %>"
+                class="w-full h-full object-cover"
+                loading="lazy"
+              >
+            <% else %>
+              <div class="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center">
+                <svg class="w-12 h-12 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
               </div>
-            </div>
+            <% end %>
 
-            <%# Title & Author %>
-            <div class="p-3 bg-gray-900">
-              <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2"><%= book.title %></h3>
-              <% if book.author.present? %>
-                <p class="text-xs text-gray-400 mt-1 truncate"><%= book.author %></p>
-              <% end %>
+            <%# Type Badge %>
+            <span class="absolute top-2 right-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium backdrop-blur-sm <%= book.audiobook? ? 'bg-purple-500/90 text-white' : 'bg-blue-500/90 text-white' %>">
+              <%= book.audiobook? ? 'Audio' : 'Ebook' %>
+            </span>
+
+            <%# Year Badge %>
+            <% if book.year.present? %>
+              <span class="absolute top-2 left-2 px-2 py-0.5 rounded text-xs font-medium bg-black/60 text-white backdrop-blur-sm">
+                <%= book.year %>
+              </span>
+            <% end %>
+
+            <%# Hover Overlay %>
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3">
+              <span class="text-white text-sm font-medium"><%= book.readable? ? "Read" : "View Details" %></span>
             </div>
-          </div>
-        <% end %>
+          <% end %>
+
+          <%# Title & Author opens the details page %>
+          <%= link_to library_path(book), class: "block p-3 bg-gray-900 hover:bg-gray-800 transition" do %>
+            <h3 class="font-semibold text-white text-sm leading-tight line-clamp-2"><%= book.title %></h3>
+            <% if book.author.present? %>
+              <p class="text-xs text-gray-400 mt-1 truncate"><%= book.author %></p>
+            <% end %>
+          <% end %>
+        </div>
       <% end %>
     </div>
   <% end %>

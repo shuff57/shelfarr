@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 
 const PDF_VERSION = "4.7.76"
 const PDF_WORKER = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDF_VERSION}/build/pdf.worker.min.mjs`
-const LIBARCHIVE_WORKER = "https://cdn.jsdelivr.net/npm/libarchive.js@1.3.0/dist/worker-bundle.js"
+const IMAGE_RE = /\.(jpe?g|png|gif|webp|avif)$/i
 
 const PREFS_KEY = "shelfarr.reader.prefs"
 const DEFAULT_PREFS = { fontSize: 100, font: "serif", lineHeight: 1.6, margin: 8, theme: "dark", flow: "paginated" }
@@ -235,17 +235,28 @@ export default class extends Controller {
   // ===== Comics (CBZ/CBR) =====
 
   async setupComic() {
-    const { Archive } = await import("libarchive.js")
-    Archive.init({ workerUrl: LIBARCHIVE_WORKER })
+    // CBZ is a ZIP, handled in-JS by JSZip (no worker/wasm). CBR is RAR, which
+    // JSZip can't read; we detect that and ask the user to convert.
+    // ponytail: CBZ only; vendor an unrar/libarchive build for CBR support.
+    const { default: JSZip } = await import("jszip")
+    const buffer = await fetch(this.fileUrlValue).then((r) => r.arrayBuffer())
 
-    const blob = await fetch(this.fileUrlValue).then((r) => r.blob())
-    const archive = await Archive.open(blob)
-    const tree = await archive.extractFiles()
+    let zip
+    try {
+      zip = await JSZip.loadAsync(buffer)
+    } catch (_) {
+      this.showStatus("This looks like a CBR (RAR) archive, which isn't supported yet — convert it to CBZ.")
+      return
+    }
 
-    const images = []
-    collectImages(tree, "", images)
-    images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-    this.comicPages = images.map((entry) => URL.createObjectURL(entry.file))
+    const entries = Object.values(zip.files)
+      .filter((f) => !f.dir && IMAGE_RE.test(f.name))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+
+    this.comicPages = []
+    for (const entry of entries) {
+      this.comicPages.push(URL.createObjectURL(await entry.async("blob")))
+    }
 
     if (this.comicPages.length === 0) {
       this.showStatus("No images found in this comic archive.")
@@ -407,15 +418,4 @@ export default class extends Controller {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
-}
-
-// libarchive.js returns a nested {name: File | subtree} object; collect image files.
-function collectImages(tree, prefix, out) {
-  for (const [name, value] of Object.entries(tree)) {
-    if (value instanceof File) {
-      if (/\.(jpe?g|png|gif|webp)$/i.test(name)) out.push({ name: prefix + name, file: value })
-    } else if (value && typeof value === "object") {
-      collectImages(value, `${prefix}${name}/`, out)
-    }
-  }
 }
