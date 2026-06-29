@@ -91,9 +91,13 @@
 
   <%# ---- Edge tap-zones for paging (center stays interactive for scroll/select/toggle) ---- %>
   <button type="button" data-action="reader#prev" aria-label="Previous page"
-          class="absolute inset-y-0 left-0 z-10 w-[30%] cursor-w-resize"></button>
+          class="group absolute inset-y-0 left-0 z-10 flex w-[30%] items-center justify-start cursor-w-resize">
+    <span class="ml-1 flex h-14 w-10 items-center justify-center rounded-r-xl bg-gray-900/30 text-3xl leading-none text-white/40 shadow backdrop-blur-sm transition group-hover:bg-gray-900/70 group-hover:text-white">&lsaquo;</span>
+  </button>
   <button type="button" data-action="reader#next" aria-label="Next page"
-          class="absolute inset-y-0 right-0 z-10 w-[30%] cursor-e-resize"></button>
+          class="group absolute inset-y-0 right-0 z-10 flex w-[30%] items-center justify-end cursor-e-resize">
+    <span class="mr-1 flex h-14 w-10 items-center justify-center rounded-l-xl bg-gray-900/30 text-3xl leading-none text-white/40 shadow backdrop-blur-sm transition group-hover:bg-gray-900/70 group-hover:text-white">&rsaquo;</span>
+  </button>
 
   <%# ---- Bottom chrome: chapter + scrubber + percent ---- %>
   <footer data-reader-target="chromeBottom"
