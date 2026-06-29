@@ -132,6 +132,30 @@ class LibraryControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "read renders a pdf book with the pdf viewer" do
+    Dir.mktmpdir do |dir|
+      SettingsService.set(:ebook_output_path, dir)
+      File.write(File.join(dir, "book.pdf"), "x")
+      book = Book.create!(title: "Pdf", book_type: :ebook, file_path: dir)
+
+      get read_library_path(book)
+      assert_response :success
+      assert_select "[data-reader-format-value='pdf']"
+    end
+  end
+
+  test "read renders a comic book with the comic viewer" do
+    Dir.mktmpdir do |dir|
+      SettingsService.set(:ebook_output_path, dir)
+      File.write(File.join(dir, "issue.cbz"), "x")
+      book = Book.create!(title: "Comic", book_type: :ebook, file_path: dir)
+
+      get read_library_path(book)
+      assert_response :success
+      assert_select "[data-reader-format-value='comic']"
+    end
+  end
+
   test "read returns 404 for a non-readable book" do
     get read_library_path(@acquired_audiobook)
     assert_response :not_found
