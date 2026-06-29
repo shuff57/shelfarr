@@ -22,6 +22,21 @@ class Book < ApplicationRecord
   # Maps a file extension to the in-browser reader that handles it.
   READER_FORMATS = { "epub" => :epub, "pdf" => :pdf, "cbz" => :comic, "cbr" => :comic }.freeze
 
+  # MIME type per reader format, for file streaming and OPDS acquisition links.
+  MIME_TYPES = {
+    epub: "application/epub+zip",
+    pdf: "application/pdf",
+    comic: "application/vnd.comicbook+zip"
+  }.freeze
+
+  def content_type
+    MIME_TYPES.fetch(reader_format, "application/octet-stream")
+  end
+
+  def self.content_type_for_path(path)
+    MIME_TYPES.fetch(new.reader_format_for(path), "application/octet-stream")
+  end
+
   # The on-disk file to read: file_path itself when it is a readable file, else
   # the largest reader-format file inside the directory. nil when none exists.
   def primary_file

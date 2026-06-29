@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class LibraryController < ApplicationController
+  include BookFileStreaming
+
   rescue_from ActiveRecord::RecordNotFound, with: :record_not_found
 
   def index
@@ -26,13 +28,7 @@ class LibraryController < ApplicationController
   # comic viewer). Range-enabled via send_file. Never accepts a path param —
   # the file is resolved server-side and confined to the configured libraries.
   def file
-    book = Book.acquired.find(params[:id])
-    path = book.primary_file
-
-    head :not_found and return if path.blank? || !File.file?(path)
-    head :forbidden and return unless path_within_allowed_directories?(path)
-
-    send_file path, disposition: "inline", type: content_type_for(path)
+    send_book_file(Book.acquired.find(params[:id]), disposition: "inline")
   end
 
   def retry_post_processing
@@ -87,17 +83,6 @@ class LibraryController < ApplicationController
   end
 
   private
-
-  CONTENT_TYPES = {
-    epub: "application/epub+zip",
-    pdf: "application/pdf",
-    comic: "application/vnd.comicbook+zip"
-  }.freeze
-
-  def content_type_for(path)
-    format = Book.new.reader_format_for(path)
-    CONTENT_TYPES.fetch(format, "application/octet-stream")
-  end
 
   def record_not_found
     head :not_found

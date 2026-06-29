@@ -41,6 +41,13 @@ Rails.application.routes.draw do
     end
   end
 
+  # OPDS catalog for external readers (Boox, KOReader). HTTP Basic auth.
+  namespace :opds do
+    get "/", to: "catalog#root", as: :root
+    get "books", to: "catalog#books"
+    get "books/:id/download", to: "catalog#download", as: :book_download
+  end
+
   # Profile
   resource :profile, only: [ :show, :edit, :update ] do
     get :password, on: :member
