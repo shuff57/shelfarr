@@ -14,6 +14,14 @@ class LibraryController < ApplicationController
     @attention_request = @book.requests.where(attention_needed: true).first
   end
 
+  # Full-screen in-browser reader for a readable ebook.
+  def read
+    @book = Book.acquired.find(params[:id])
+    head :not_found and return unless @book.readable?
+
+    render layout: "reader"
+  end
+
   # Streams the book's primary file to the browser viewer (epub.js / pdf.js /
   # comic viewer). Range-enabled via send_file. Never accepts a path param —
   # the file is resolved server-side and confined to the configured libraries.

@@ -34,7 +34,10 @@ Rails.application.routes.draw do
   resources :library, only: [ :index, :show, :destroy ] do
     member do
       post :retry_post_processing
+      get :read
       get :file
+      get "progress", to: "reading_progress#show"
+      put "progress", to: "reading_progress#update"
     end
   end
 

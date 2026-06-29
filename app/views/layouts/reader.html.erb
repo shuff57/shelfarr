@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Reader" %> · Shelfarr</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <link rel="icon" href="<%= public_asset_path('icon.png') %>" type="image/png">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-gray-950 h-screen overflow-hidden">
+    <%= yield %>
+  </body>
+</html>

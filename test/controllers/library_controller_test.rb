@@ -118,6 +118,25 @@ class LibraryControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "read renders the reader for a readable ebook" do
+    Dir.mktmpdir do |dir|
+      SettingsService.set(:ebook_output_path, dir)
+      epub = File.join(dir, "book.epub")
+      File.write(epub, "x")
+      book = Book.create!(title: "Readable", book_type: :ebook, file_path: epub)
+
+      get read_library_path(book)
+      assert_response :success
+      assert_select "[data-controller='reader']"
+      assert_select "[data-reader-format-value='epub']"
+    end
+  end
+
+  test "read returns 404 for a non-readable book" do
+    get read_library_path(@acquired_audiobook)
+    assert_response :not_found
+  end
+
   test "file returns 404 when no readable file exists" do
     book = Book.create!(title: "X", book_type: :ebook, file_path: "/ebooks/missing/missing.epub")
     get file_library_path(book)

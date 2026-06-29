@@ -3,6 +3,7 @@ class Book < ApplicationRecord
 
   has_many :requests, dependent: :restrict_with_error
   has_many :uploads, dependent: :nullify
+  has_many :reading_progresses, dependent: :destroy
 
   enum :book_type, { audiobook: 0, ebook: 1 }
 

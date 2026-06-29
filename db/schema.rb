@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_28_120100) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_29_120000) do
   create_table "acquisition_providers", force: :cascade do |t|
     t.boolean "allow_private_network", default: false, null: false
     t.string "api_key"
@@ -235,6 +235,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120100) do
     t.index ["user_id"], name: "index_notifications_on_user_id"
   end
 
+  create_table "reading_progresses", force: :cascade do |t|
+    t.integer "book_id", null: false
+    t.datetime "created_at", null: false
+    t.string "location"
+    t.float "percent", default: 0.0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "user_id", null: false
+    t.index ["book_id"], name: "index_reading_progresses_on_book_id"
+    t.index ["user_id", "book_id"], name: "index_reading_progresses_on_user_id_and_book_id", unique: true
+    t.index ["user_id"], name: "index_reading_progresses_on_user_id"
+  end
+
   create_table "request_events", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.json "details", default: {}
@@ -433,6 +445,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_28_120100) do
   add_foreign_key "downloads", "search_results", on_delete: :nullify
   add_foreign_key "import_lists", "users"
   add_foreign_key "notifications", "users"
+  add_foreign_key "reading_progresses", "books"
+  add_foreign_key "reading_progresses", "users"
   add_foreign_key "request_events", "downloads"
   add_foreign_key "request_events", "requests"
   add_foreign_key "requests", "books"
