@@ -4,21 +4,41 @@ const PDF_VERSION = "4.7.76"
 const PDF_WORKER = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDF_VERSION}/build/pdf.worker.min.mjs`
 const LIBARCHIVE_WORKER = "https://cdn.jsdelivr.net/npm/libarchive.js@1.3.0/dist/worker-bundle.js"
 
-// Drives the in-browser reader. Dispatches by format to the matching viewer,
-// restores the saved reading position on open, and saves it (debounced) as the
-// reader moves. The saved "location" is opaque per format: an epub CFI, a pdf
-// page number, or a comic page index.
+const PREFS_KEY = "shelfarr.reader.prefs"
+const DEFAULT_PREFS = { fontSize: 100, font: "serif", lineHeight: 1.6, margin: 8, theme: "dark", flow: "paginated" }
+const FONTS = {
+  serif: "Georgia, 'Times New Roman', serif",
+  sans: "system-ui, -apple-system, Segoe UI, sans-serif",
+  dyslexic: "'OpenDyslexic', 'Comic Sans MS', sans-serif"
+}
+const THEME_BG = { light: "#ffffff", sepia: "#f4ecd8", dark: "#0a0a0a" }
+
+// Drives the in-browser reader with a BookLore/Calibre-style reading experience:
+// tap-zones + immersive chrome, typography + theme controls, a table of contents,
+// and a scrubbable progress bar. EPUB gets the full treatment; PDF and comics
+// reuse the same progress/scrub UI with their own page renderers.
 export default class extends Controller {
   static values = { format: String, fileUrl: String, progressUrl: String }
-  static targets = ["viewport", "prev", "next", "percent", "status"]
+  static targets = [
+    "viewport", "chrome", "chromeBottom", "epubControls", "toc", "tocList",
+    "settings", "backdrop", "scrub", "percent", "chapter", "status",
+    "fontSizeLabel", "lineHeight", "margin"
+  ]
 
   connect() {
     this.saveTimer = null
+    this.immersive = false
+    this.prefs = this.loadPrefs()
+
     const setup = {
       epub: () => this.setupEpub(),
       pdf: () => this.setupPdf(),
       comic: () => this.setupComic()
     }[this.formatValue]
+
+    if (this.formatValue !== "epub" && this.hasEpubControlsTarget) {
+      this.epubControlsTarget.classList.add("hidden")
+    }
 
     if (setup) {
       setup().catch((error) => this.showStatus(`Could not open this book: ${error.message}`))
@@ -29,13 +49,12 @@ export default class extends Controller {
 
   disconnect() {
     clearTimeout(this.saveTimer)
-    if (this.keyHandler) document.removeEventListener("keyup", this.keyHandler)
     if (this.book && this.book.destroy) this.book.destroy()
     if (this.pdf && this.pdf.destroy) this.pdf.destroy()
     if (this.comicPages) this.comicPages.forEach((url) => URL.revokeObjectURL(url))
   }
 
-  // ---- EPUB (epub.js) ----
+  // ===== EPUB =====
 
   async setupEpub() {
     const { default: ePub } = await import("epubjs")
@@ -43,34 +62,144 @@ export default class extends Controller {
     // extension-less /file URL as an unpacked directory and 404s on container.xml.
     this.book = ePub(this.fileUrlValue, { openAs: "epub" })
     this.rendition = this.book.renderTo(this.viewportTarget, {
-      width: "100%",
-      height: "100%",
-      flow: "paginated",
-      spread: "auto"
+      width: "100%", height: "100%", flow: this.prefs.flow, spread: "auto"
+    })
+
+    this.registerThemes()
+    this.applyPrefs()
+
+    // Click-to-page from inside the epub content (preserves text selection).
+    this.rendition.hooks.content.register((contents) => {
+      contents.document.documentElement.addEventListener("click", (e) => this.onContentClick(e, contents))
+      contents.document.addEventListener("keyup", (e) => this.onKey(e))
     })
 
     const saved = await this.loadProgress()
     await this.rendition.display(saved.location || undefined)
 
-    this.book.ready
-      .then(() => this.book.locations.generate(1600))
-      .then(() => { if (saved.percent != null) this.updatePercent(saved.percent) })
-      .catch(() => {})
+    this.rendition.on("relocated", (loc) => this.onRelocated(loc))
 
-    this.rendition.on("relocated", (location) => {
-      const cfi = location.start.cfi
-      let percent = 0
-      try {
-        percent = Math.round((this.book.locations.percentageFromCfi(cfi) || 0) * 100)
-      } catch (_) { /* locations not ready yet */ }
-      this.updatePercent(percent)
-      this.queueSave(cfi, percent)
-    })
-
-    this.bindKeys()
+    await this.book.ready
+    await this.book.locations.generate(1600).catch(() => {})
+    this.buildToc()
+    this.onRelocated(this.rendition.currentLocation())
   }
 
-  // ---- PDF (pdf.js) ----
+  registerThemes() {
+    this.rendition.themes.register("light", { body: { color: "#1a1a1a", background: "#ffffff" } })
+    this.rendition.themes.register("sepia", { body: { color: "#5b4636", background: "#f4ecd8" } })
+    this.rendition.themes.register("dark", { body: { color: "#cbd5e1", background: "#0a0a0a" }, a: { color: "#7dd3fc !important" } })
+  }
+
+  applyPrefs() {
+    this.applyTheme(this.prefs.theme)
+    this.rendition.themes.font(FONTS[this.prefs.font] || FONTS.serif)
+    this.rendition.themes.fontSize(`${this.prefs.fontSize}%`)
+    this.rendition.themes.override("line-height", String(this.prefs.lineHeight))
+    this.applyMargin(this.prefs.margin)
+
+    if (this.hasFontSizeLabelTarget) this.fontSizeLabelTarget.textContent = `${this.prefs.fontSize}%`
+    if (this.hasLineHeightTarget) this.lineHeightTarget.value = this.prefs.lineHeight
+    if (this.hasMarginTarget) this.marginTarget.value = this.prefs.margin
+    this.markActive("theme", this.prefs.theme)
+    this.markActive("font", this.prefs.font)
+    this.markActive("flow", this.prefs.flow)
+  }
+
+  applyTheme(theme) {
+    this.rendition.themes.select(theme)
+    this.viewportTarget.style.background = THEME_BG[theme] || THEME_BG.dark
+  }
+
+  applyMargin(percent) {
+    this.rendition.themes.override("padding-left", `${percent}%`)
+    this.rendition.themes.override("padding-right", `${percent}%`)
+  }
+
+  buildToc() {
+    const toc = this.book.navigation?.toc || []
+    this.tocFlat = []
+    const flatten = (items, depth) => items.forEach((it) => {
+      this.tocFlat.push({ label: (it.label || "").trim(), href: it.href, depth })
+      if (it.subitems && it.subitems.length) flatten(it.subitems, depth + 1)
+    })
+    flatten(toc, 0)
+
+    if (!this.hasTocListTarget) return
+    this.tocListTarget.innerHTML = ""
+    this.tocFlat.forEach((it) => {
+      const btn = document.createElement("button")
+      btn.type = "button"
+      btn.className = "block w-full truncate rounded px-2 py-1.5 text-left text-gray-300 hover:bg-gray-800"
+      btn.style.paddingLeft = `${0.5 + it.depth * 0.75}rem`
+      btn.textContent = it.label || "—"
+      btn.addEventListener("click", () => { this.rendition.display(it.href); this.toggleToc() })
+      this.tocListTarget.appendChild(btn)
+    })
+  }
+
+  chapterLabel(href) {
+    if (!this.tocFlat || !href) return ""
+    const base = href.split("#")[0]
+    const match = this.tocFlat.find((i) => i.href && i.href.split("#")[0].endsWith(base.split("/").pop()))
+    return match ? match.label : ""
+  }
+
+  onRelocated(loc) {
+    if (!loc || !loc.start) return
+    const cfi = loc.start.cfi
+    let percent = 0
+    try { percent = this.book.locations.percentageFromCfi(cfi) || 0 } catch (_) { /* not ready */ }
+    this.updateProgressUI(percent, this.chapterLabel(loc.start.href))
+    this.queueSave(cfi, Math.round(percent * 100))
+  }
+
+  // ===== Typography / theme controls (epub) =====
+
+  fontLarger() { this.setFontSize(this.prefs.fontSize + 10) }
+  fontSmaller() { this.setFontSize(this.prefs.fontSize - 10) }
+
+  setFontSize(size) {
+    this.prefs.fontSize = clamp(size, 70, 260)
+    this.rendition.themes.fontSize(`${this.prefs.fontSize}%`)
+    if (this.hasFontSizeLabelTarget) this.fontSizeLabelTarget.textContent = `${this.prefs.fontSize}%`
+    this.savePrefs()
+  }
+
+  setFont(e) {
+    this.prefs.font = e.currentTarget.dataset.font
+    this.rendition.themes.font(FONTS[this.prefs.font] || FONTS.serif)
+    this.markActive("font", this.prefs.font)
+    this.savePrefs()
+  }
+
+  setLineHeight(e) {
+    this.prefs.lineHeight = parseFloat(e.currentTarget.value)
+    this.rendition.themes.override("line-height", String(this.prefs.lineHeight))
+    this.savePrefs()
+  }
+
+  setMargin(e) {
+    this.prefs.margin = parseInt(e.currentTarget.value, 10)
+    this.applyMargin(this.prefs.margin)
+    this.savePrefs()
+  }
+
+  setTheme(e) {
+    this.prefs.theme = e.currentTarget.dataset.theme
+    this.applyTheme(this.prefs.theme)
+    this.markActive("theme", this.prefs.theme)
+    this.savePrefs()
+  }
+
+  setFlow(e) {
+    this.prefs.flow = e.currentTarget.dataset.flow
+    this.rendition.flow(this.prefs.flow)
+    this.markActive("flow", this.prefs.flow)
+    this.savePrefs()
+  }
+
+  // ===== PDF =====
 
   async setupPdf() {
     const pdfjs = await import("pdfjs-dist")
@@ -79,14 +208,13 @@ export default class extends Controller {
     this.pdf = await pdfjs.getDocument(this.fileUrlValue).promise
     this.canvas = document.createElement("canvas")
     this.canvas.className = "mx-auto block"
+    this.viewportTarget.classList.add("overflow-auto")
     this.viewportTarget.appendChild(this.canvas)
 
     const saved = await this.loadProgress()
     const startPage = parseInt(saved.location, 10)
     this.page = clamp(Number.isNaN(startPage) ? 1 : startPage, 1, this.pdf.numPages)
-
     await this.renderPdfPage()
-    this.bindKeys()
   }
 
   async renderPdfPage() {
@@ -99,12 +227,12 @@ export default class extends Controller {
     this.canvas.height = viewport.height
     await page.render({ canvasContext: this.canvas.getContext("2d"), viewport }).promise
 
-    const percent = Math.round((this.page / this.pdf.numPages) * 100)
-    this.updatePercent(percent)
-    this.queueSave(String(this.page), percent)
+    const percent = this.page / this.pdf.numPages
+    this.updateProgressUI(percent, `Page ${this.page} / ${this.pdf.numPages}`)
+    this.queueSave(String(this.page), Math.round(percent * 100))
   }
 
-  // ---- Comics (CBZ/CBR via libarchive.js) ----
+  // ===== Comics (CBZ/CBR) =====
 
   async setupComic() {
     const { Archive } = await import("libarchive.js")
@@ -126,24 +254,23 @@ export default class extends Controller {
 
     this.image = document.createElement("img")
     this.image.className = "mx-auto block max-h-full"
+    this.viewportTarget.classList.add("overflow-auto")
     this.viewportTarget.appendChild(this.image)
 
     const saved = await this.loadProgress()
     const startIndex = parseInt(saved.location, 10)
     this.showComicPage(Number.isNaN(startIndex) ? 0 : startIndex)
-    this.bindKeys()
   }
 
   showComicPage(index) {
     this.comicIndex = clamp(index, 0, this.comicPages.length - 1)
     this.image.src = this.comicPages[this.comicIndex]
-
-    const percent = Math.round(((this.comicIndex + 1) / this.comicPages.length) * 100)
-    this.updatePercent(percent)
-    this.queueSave(String(this.comicIndex), percent)
+    const percent = (this.comicIndex + 1) / this.comicPages.length
+    this.updateProgressUI(percent, `Page ${this.comicIndex + 1} / ${this.comicPages.length}`)
+    this.queueSave(String(this.comicIndex), Math.round(percent * 100))
   }
 
-  // ---- Navigation (dispatches by active viewer) ----
+  // ===== Navigation (dispatches by active viewer) =====
 
   prev() {
     if (this.rendition) this.rendition.prev()
@@ -157,24 +284,101 @@ export default class extends Controller {
     else if (this.comicPages) this.showComicPage(this.comicIndex + 1)
   }
 
-  bindKeys() {
-    this.keyHandler = (event) => {
-      if (event.key === "ArrowLeft") this.prev()
-      if (event.key === "ArrowRight") this.next()
+  scrub(e) {
+    const fraction = parseInt(e.currentTarget.value, 10) / 1000
+    if (this.book && this.book.locations && this.book.locations.length()) {
+      const cfi = this.book.locations.cfiFromPercentage(fraction)
+      if (cfi) this.rendition.display(cfi)
+    } else if (this.pdf) {
+      this.page = clamp(Math.round(fraction * this.pdf.numPages) || 1, 1, this.pdf.numPages)
+      this.renderPdfPage()
+    } else if (this.comicPages) {
+      this.showComicPage(Math.round(fraction * (this.comicPages.length - 1)))
     }
-    document.addEventListener("keyup", this.keyHandler)
   }
 
-  // ---- Shared UI + progress ----
+  onContentClick(e, contents) {
+    if (e.target.closest && e.target.closest("a")) return
+    const selection = contents.window.getSelection()
+    if (selection && selection.toString().length > 0) return
 
-  updatePercent(percent) {
+    const width = contents.documentElement.clientWidth || contents.window.innerWidth
+    if (e.clientX < width * 0.3) this.prev()
+    else if (e.clientX > width * 0.7) this.next()
+    else this.toggleChrome()
+  }
+
+  onKey(e) {
+    if (e.target && e.target.matches && e.target.matches("input, textarea, select")) return
+    if (e.key === "ArrowLeft") this.prev()
+    else if (e.key === "ArrowRight" || e.key === " ") this.next()
+    else if (e.key === "Escape") this.closePanels()
+  }
+
+  // ===== Chrome / panels =====
+
+  toggleChrome() {
+    this.immersive = !this.immersive
+    this.chromeTarget.classList.toggle("-translate-y-full", this.immersive)
+    if (this.hasChromeBottomTarget) this.chromeBottomTarget.classList.toggle("translate-y-full", this.immersive)
+    this.closePanels()
+  }
+
+  toggleToc() { this.togglePanel(this.tocTarget) }
+  toggleSettings() { this.togglePanel(this.settingsTarget) }
+
+  togglePanel(panel) {
+    const opening = panel.classList.contains("hidden")
+    this.closePanels()
+    if (opening) {
+      panel.classList.remove("hidden")
+      this.backdropTarget.classList.remove("hidden")
+    }
+  }
+
+  closePanels() {
+    if (this.hasTocTarget) this.tocTarget.classList.add("hidden")
+    if (this.hasSettingsTarget) this.settingsTarget.classList.add("hidden")
+    if (this.hasBackdropTarget) this.backdropTarget.classList.add("hidden")
+  }
+
+  // ===== Shared UI / progress =====
+
+  updateProgressUI(fraction, chapterLabel) {
+    const percent = Math.round((fraction || 0) * 100)
     if (this.hasPercentTarget) this.percentTarget.textContent = `${percent}%`
+    if (this.hasScrubTarget) this.scrubTarget.value = Math.round((fraction || 0) * 1000)
+    if (this.hasChapterTarget) this.chapterTarget.textContent = chapterLabel || ""
+  }
+
+  markActive(group, value) {
+    this.element.querySelectorAll(`.reader-opt[data-${group}]`).forEach((btn) => {
+      const on = btn.dataset[group] === value
+      btn.classList.toggle("ring-2", on)
+      btn.classList.toggle("ring-blue-500", on)
+    })
   }
 
   showStatus(message) {
     if (!this.hasStatusTarget) return
     this.statusTarget.textContent = message
     this.statusTarget.classList.remove("hidden")
+    this.statusTarget.classList.add("grid")
+  }
+
+  // ===== Preferences (localStorage) + progress (server) =====
+  // ponytail: display prefs are per-device; reading position syncs server-side.
+
+  loadPrefs() {
+    try {
+      return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") }
+    } catch (_) {
+      return { ...DEFAULT_PREFS }
+    }
+  }
+
+  savePrefs() {
+    try { localStorage.setItem(PREFS_KEY, JSON.stringify(this.prefs)) } catch (_) { /* ignore */ }
   }
 
   async loadProgress() {
