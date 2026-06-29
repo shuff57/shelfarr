@@ -39,7 +39,9 @@ export default class extends Controller {
 
   async setupEpub() {
     const { default: ePub } = await import("epubjs")
-    this.book = ePub(this.fileUrlValue)
+    // openAs: "epub" forces archive mode; without it epub.js treats the
+    // extension-less /file URL as an unpacked directory and 404s on container.xml.
+    this.book = ePub(this.fileUrlValue, { openAs: "epub" })
     this.rendition = this.book.renderTo(this.viewportTarget, {
       width: "100%",
       height: "100%",
