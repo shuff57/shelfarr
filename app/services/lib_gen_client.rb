@@ -50,6 +50,18 @@ class LibGenClient
   MD5_REGEX = /md5=([0-9a-fA-F]{32})/
   GET_LINK_REGEX = %r{get\.php\?md5=}
 
+  # Known libgen.li-family mirrors, tried as fallbacks when domain rotation is
+  # enabled so a dead configured mirror self-heals without manual edits. Mirrors
+  # Listenarr's indexer domain auto-rotation catalog.
+  # ponytail: static catalog; refresh by editing this list when domains move.
+  KNOWN_MIRRORS = %w[
+    https://libgen.li
+    https://libgen.gs
+    https://libgen.vg
+    https://libgen.la
+    https://libgen.bz
+  ].freeze
+
   class << self
     # Configured when enabled and at least one mirror URL is set.
     def configured?
@@ -129,7 +141,7 @@ class LibGenClient
       last_error = nil
 
       ordered_base_urls.each do |base_url|
-        return yield(base_url).tap { @working_base_url = base_url }
+        return yield(base_url).tap { remember_working_mirror(base_url) }
       rescue Faraday::ConnectionFailed, Faraday::TimeoutError, Faraday::SSLError, ConnectionError => e
         last_error = e
         Rails.logger.debug "[LibGenClient] #{context} failed on #{base_url}: #{e.message}"
@@ -213,11 +225,42 @@ class LibGenClient
       raise ConfigurationError, "LibGen URL is invalid: #{e.message}"
     end
 
-    def ordered_base_urls
+    def rotation_enabled?
+      SettingsService.get(:libgen_domain_rotation_enabled, default: true)
+    end
+
+    # The full set the rotation loop may try: configured mirrors first, then the
+    # known catalog (when rotation is on), normalized and deduped.
+    def candidate_base_urls
       urls = configured_base_urls
+      return urls unless rotation_enabled?
+
+      catalog = KNOWN_MIRRORS.filter_map { |url| normalize_base_url(url) }
+      (urls + catalog).uniq
+    end
+
+    def ordered_base_urls
+      urls = candidate_base_urls
       return urls unless @working_base_url && urls.include?(@working_base_url)
 
       [ @working_base_url, *(urls - [ @working_base_url ]) ]
+    end
+
+    # Pin the mirror that just worked so later calls skip dead mirrors, and
+    # persist it to the front of libgen_url so the choice survives restarts and
+    # shows in the UI — the "remember" half of Listenarr-style rotation.
+    def remember_working_mirror(base_url)
+      @working_base_url = base_url
+      persist_preferred_mirror(base_url) if rotation_enabled?
+    end
+
+    def persist_preferred_mirror(base_url)
+      current = configured_base_urls
+      return if current.first == base_url
+
+      SettingsService.set(:libgen_url, [ base_url, *(current - [ base_url ]) ].join(", "))
+    rescue StandardError => e
+      Rails.logger.warn "[LibGenClient] Could not persist preferred mirror #{base_url}: #{e.message}"
     end
 
     def preferred_base_url

@@ -162,6 +162,7 @@ class SettingsService
     libgen_enabled: { type: "boolean", default: false, category: "libgen", description: "Enable a Library Genesis mirror as a direct ebook source. No torrent client required." },
     libgen_url: { type: "string", default: "https://libgen.li", category: "libgen", description: "LibGen mirror base URLs to try (e.g. https://libgen.li, https://libgen.vg). Shelfarr uses the first reachable mirror." },
     libgen_search_limit: { type: "integer", default: 25, category: "libgen", description: "Maximum number of LibGen ebook results to return" },
+    libgen_domain_rotation_enabled: { type: "boolean", default: true, category: "libgen", description: "Auto-rotation: when the configured LibGen mirror is unreachable, fall back to a built-in list of known mirrors and remember the one that works." },
 
     # Hardcover Integration
     hardcover_enabled: { type: "boolean", default: true, category: "hardcover", description: "Enable Hardcover as a metadata provider when an API token is configured" },
