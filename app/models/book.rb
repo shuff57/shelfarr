@@ -3,7 +3,6 @@ class Book < ApplicationRecord
 
   has_many :requests, dependent: :restrict_with_error
   has_many :uploads, dependent: :nullify
-  has_many :reading_progresses, dependent: :destroy
 
   enum :book_type, { audiobook: 0, ebook: 1 }
 
@@ -17,55 +16,6 @@ class Book < ApplicationRecord
 
   def acquired?
     file_path.present?
-  end
-
-  # Maps a file extension to the in-browser reader that handles it.
-  READER_FORMATS = { "epub" => :epub, "pdf" => :pdf, "cbz" => :comic, "cbr" => :comic }.freeze
-
-  # MIME type per reader format, for file streaming and OPDS acquisition links.
-  MIME_TYPES = {
-    epub: "application/epub+zip",
-    pdf: "application/pdf",
-    comic: "application/vnd.comicbook+zip"
-  }.freeze
-
-  def content_type
-    MIME_TYPES.fetch(reader_format, "application/octet-stream")
-  end
-
-  def self.content_type_for_path(path)
-    MIME_TYPES.fetch(new.reader_format_for(path), "application/octet-stream")
-  end
-
-  # The on-disk file to read: file_path itself when it is a readable file, else
-  # the largest reader-format file inside the directory. nil when none exists.
-  def primary_file
-    return nil if file_path.blank?
-
-    if File.file?(file_path)
-      return reader_format_for(file_path) ? file_path : nil
-    end
-    return nil unless File.directory?(file_path)
-
-    Dir.glob(File.join(file_path, "**", "*"))
-       .select { |f| File.file?(f) && reader_format_for(f) }
-       .max_by { |f| File.size(f) }
-  end
-
-  # :epub, :pdf, :comic, or nil for the book's primary file.
-  def reader_format
-    reader_format_for(primary_file)
-  end
-
-  # Only ebooks with a renderable file can be opened in the reader.
-  def readable?
-    ebook? && reader_format.present?
-  end
-
-  def reader_format_for(path)
-    return nil if path.blank?
-
-    READER_FORMATS[File.extname(path.to_s).delete_prefix(".").downcase]
   end
 
   def display_name

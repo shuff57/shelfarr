@@ -34,18 +34,7 @@ Rails.application.routes.draw do
   resources :library, only: [ :index, :show, :destroy ] do
     member do
       post :retry_post_processing
-      get :read
-      get :file
-      get "progress", to: "reading_progress#show"
-      put "progress", to: "reading_progress#update"
     end
-  end
-
-  # OPDS catalog for external readers (Boox, KOReader). HTTP Basic auth.
-  namespace :opds do
-    get "/", to: "catalog#root", as: :root
-    get "books", to: "catalog#books"
-    get "books/:id/download", to: "catalog#download", as: :book_download
   end
 
   # Profile

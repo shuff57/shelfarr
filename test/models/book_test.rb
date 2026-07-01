@@ -1,56 +1,8 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "tmpdir"
 
 class BookTest < ActiveSupport::TestCase
-  test "primary_file and reader_format resolve a direct epub file" do
-    Dir.mktmpdir do |dir|
-      epub = File.join(dir, "book.epub")
-      File.write(epub, "x")
-      book = Book.new(title: "T", book_type: :ebook, file_path: epub)
-
-      assert_equal epub, book.primary_file
-      assert_equal :epub, book.reader_format
-      assert book.readable?
-    end
-  end
-
-  test "primary_file picks the largest reader-format file in a directory" do
-    Dir.mktmpdir do |dir|
-      File.write(File.join(dir, "small.pdf"), "x")
-      big = File.join(dir, "big.epub")
-      File.write(big, "x" * 100)
-      File.write(File.join(dir, "cover.jpg"), "x" * 1000) # not a reader format -> ignored
-      book = Book.new(title: "T", book_type: :ebook, file_path: dir)
-
-      assert_equal big, book.primary_file
-      assert_equal :epub, book.reader_format
-    end
-  end
-
-  test "reader_format maps comic archives to :comic" do
-    Dir.mktmpdir do |dir|
-      cbr = File.join(dir, "issue.cbr")
-      File.write(cbr, "x")
-      assert_equal :comic, Book.new(title: "T", book_type: :ebook, file_path: cbr).reader_format
-    end
-  end
-
-  test "readable? is false for audiobooks, missing paths, and unreadable formats" do
-    assert_not Book.new(title: "T", book_type: :ebook, file_path: nil).readable?
-
-    Dir.mktmpdir do |dir|
-      cbz = File.join(dir, "a.cbz")
-      File.write(cbz, "x")
-      assert_not Book.new(title: "T", book_type: :audiobook, file_path: cbz).readable?
-
-      txt_only = File.join(dir, "notes.txt")
-      File.write(txt_only, "x")
-      assert_nil Book.new(title: "T", book_type: :ebook, file_path: txt_only).reader_format
-    end
-  end
-
   test "work_id helpers support google books ids" do
     book = Book.create!(
       title: "Test Book",
